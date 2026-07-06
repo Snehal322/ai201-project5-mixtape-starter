@@ -6,7 +6,7 @@ This is the starter repo for **Project 5: Mixtape Bug Hunt**. The app has five o
 
 ---
  
-## App Structure
+## App Structure 
 
 ```
 ai201-project5-mixtape-starter/
