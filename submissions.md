@@ -427,3 +427,80 @@ After the change, I verified that:
 * playlist ordering is preserved,
 * playlists with one song still return that song correctly,
 * empty playlists continue to return an empty list.
+
+Issue #4 – Duplicate songs appear in search results
+How I reproduced it
+
+Started the application using the seeded database.
+
+Sent a search request to the song search endpoint using a query that matched songs with multiple tags (for example, GET /songs/search?q=Night).
+
+Compared the search results with the expected list of matching songs.
+
+Observed that some songs appeared more than once in the search results when they had multiple associated tags.
+
+How I found the root cause
+
+I started at routes/songs.py and traced the request to search_songs() in services/search_service.py. The function performs an outer join between the Song table and the song_tags association table before filtering by title or artist. Since a song can have multiple tags, the join can produce multiple rows for the same song. I inspected the query and identified that it returned duplicate Song objects because no deduplication was performed before returning the results.
+
+The root cause
+
+The search query joins the Song table with the song_tags association table, creating one result row for each matching tag. Songs with multiple tags therefore appear multiple times in the query results. Because the query did not remove duplicate Song records, the API returned duplicate songs in the search response.
+
+My fix and side-effect check
+
+I updated the query to remove duplicate song records by adding .distinct() before retrieving the results.
+
+Changed:
+
+...
+.filter(...)
+.all()
+
+to:
+
+...
+.filter(...)
+.distinct()
+.all()
+
+After making the change, I verified that:
+
+each matching song appears only once in the search results,
+songs with multiple tags are still returned correctly,
+searches by both title and artist continue to work as expected,
+tag information is still included in the returned song objects.
+
+----------------
+
+AI Usage
+
+During this project, I used ChatGPT primarily as a codebase navigation and debugging assistant rather than as a code generator.
+
+Codebase navigation
+I used AI to summarize the purpose of the major files in the project, including the route files, service layer, and SQLAlchemy models.
+I asked AI to explain how requests flow through the application (Route → Service → Model → Database).
+AI helped me trace example features such as recording a listening event and retrieving playlist songs so I could build my initial codebase map.
+Understanding code
+
+After locating the relevant service files myself, I used AI to explain functions that I did not fully understand. For example, I asked for explanations of:
+
+update_listening_streak()
+get_friends_listening_now()
+get_playlist_songs()
+
+AI helped explain the control flow, date calculations, SQLAlchemy queries, and list slicing behavior.
+
+Debugging
+
+I did not ask AI to identify bugs without context. Instead, I first reproduced each issue, traced the route to the appropriate service file, and then used AI to help explain suspicious code.
+
+For each bug, I verified the diagnosis myself by:
+
+reading the relevant service implementation,
+testing the API endpoints with curl,
+querying the database using the Flask shell,
+confirming the behavior before and after the fix.
+Verification
+
+After implementing each fix, I tested the affected endpoint again to ensure the issue was resolved and checked related functionality to make sure no unintended side effects were introduced.
